@@ -109,7 +109,13 @@ export async function deleteMeal(formData: FormData) {
 
 export type WeekMealsView = {
   weekStart: string;
-  days: { date: string; slots: Record<MealSlot, { id: string; name: string; instructions?: string } | null> }[];
+  days: {
+    date: string;
+    slots: Record<
+      MealSlot,
+      { id: string; name: string; instructions?: string; ingredients: string[] } | null
+    >;
+  }[];
 };
 
 export async function getWeekMeals(weekStartIso?: string): Promise<WeekMealsView> {
@@ -133,7 +139,12 @@ export async function getWeekMeals(weekStartIso?: string): Promise<WeekMealsView
         return [
           slot,
           m
-            ? { id: String(m._id), name: m.name, instructions: m.instructions ?? undefined }
+            ? {
+                id: String(m._id),
+                name: m.name,
+                instructions: m.instructions ?? undefined,
+                ingredients: Array.isArray(m.ingredients) ? m.ingredients : [],
+              }
             : null,
         ];
       })

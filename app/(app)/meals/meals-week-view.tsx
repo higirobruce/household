@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Pencil, Plus, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,8 @@ import { upsertMeal, type WeekMealsView } from "@/actions/meals";
 import { addDays, isoDay } from "@/lib/utils";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+type MealItem = NonNullable<WeekMealsView["days"][number]["slots"][MealSlot]>;
 
 export function MealsWeekView({
   view,
@@ -120,13 +122,13 @@ function SlotRow({
 }: {
   date: string;
   slot: MealSlot;
-  meal: { id: string; name: string; instructions?: string } | null;
+  meal: MealItem | null;
   editable: boolean;
   weekStart: string;
 }) {
   return (
     <li className="flex items-start justify-between gap-2 rounded-lg border bg-card/50 p-3">
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           {slot}
         </p>
@@ -134,9 +136,16 @@ function SlotRow({
         {meal?.instructions && (
           <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{meal.instructions}</p>
         )}
+        {meal && meal.ingredients.length > 0 && (
+          <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">
+            {meal.ingredients.join(", ")}
+          </p>
+        )}
       </div>
-      {editable && (
+      {editable ? (
         <EditMealSheet date={date} slot={slot} meal={meal} weekStart={weekStart} />
+      ) : (
+        meal && <MealDetailsSheet date={date} slot={slot} meal={meal} />
       )}
     </li>
   );
@@ -151,7 +160,7 @@ function SlotCell({
 }: {
   date: string;
   slot: MealSlot;
-  meal: { id: string; name: string; instructions?: string } | null;
+  meal: MealItem | null;
   editable: boolean;
   weekStart: string;
 }) {
@@ -168,11 +177,16 @@ function SlotCell({
       <span className="text-xs text-muted-foreground">—</span>
     );
   }
-  return (
-    <div className="group rounded-md border bg-card p-2">
+  const card = (
+    <div className="group rounded-md border bg-card p-2 text-left">
       <p className="line-clamp-2 text-sm font-medium">{meal.name}</p>
       {meal.instructions && (
         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{meal.instructions}</p>
+      )}
+      {meal.ingredients.length > 0 && (
+        <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">
+          {meal.ingredients.join(", ")}
+        </p>
       )}
       {editable && (
         <div className="mt-2">
@@ -187,6 +201,76 @@ function SlotCell({
       )}
     </div>
   );
+  if (editable) return card;
+  return (
+    <MealDetailsSheet date={date} slot={slot} meal={meal} triggerContent={card} />
+  );
+}
+
+function MealDetailsSheet({
+  date,
+  slot,
+  meal,
+  triggerContent,
+}: {
+  date: string;
+  slot: MealSlot;
+  meal: MealItem;
+  triggerContent?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        {triggerContent ? (
+          <button
+            type="button"
+            className="w-full rounded-md text-left transition hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            aria-label={`View ${slot} for ${date}: ${meal.name}`}
+          >
+            {triggerContent}
+          </button>
+        ) : (
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
+            <Info className="h-3 w-3" /> Details
+          </Button>
+        )}
+      </SheetTrigger>
+      <SheetContent side="bottom" className="rounded-t-xl">
+        <SheetHeader>
+          <SheetTitle className="capitalize">
+            {slot} · {meal.name}
+          </SheetTitle>
+          <SheetDescription>{date}</SheetDescription>
+        </SheetHeader>
+        <div className="mt-4 space-y-4">
+          {meal.instructions && (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Instructions
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm">{meal.instructions}</p>
+            </div>
+          )}
+          {meal.ingredients.length > 0 && (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Ingredients
+              </p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm">
+                {meal.ingredients.map((ing, i) => (
+                  <li key={`${ing}-${i}`}>{ing}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {!meal.instructions && meal.ingredients.length === 0 && (
+            <p className="text-sm text-muted-foreground">No extra details for this meal.</p>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
 }
 
 function EditMealSheet({
@@ -198,7 +282,7 @@ function EditMealSheet({
 }: {
   date: string;
   slot: MealSlot;
-  meal: { id: string; name: string; instructions?: string } | null;
+  meal: MealItem | null;
   weekStart: string;
   triggerLabel?: string;
 }) {
@@ -261,6 +345,7 @@ function EditMealSheet({
               id="ingredients"
               name="ingredients"
               rows={2}
+              defaultValue={meal?.ingredients.join("\n") ?? ""}
               placeholder="rice, kidney beans, onion"
             />
           </div>
